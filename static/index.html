@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="te">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TGSPDCL Lineman Call Assistant - Mobile Portal</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- CSS -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- Sleek Futuristic Grid Glow Backdrop -->
+    <div class="glow-bg">
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
+        <div class="glow-orb orb-3"></div>
+    </div>
+
+    <!-- Main Container serving Smartphone frame & Desktop Sidebar -->
+    <div class="mobile-frame-container">
+        
+        <!-- Smartphone Outer Chassis -->
+        <div class="smartphone-chassis">
+            <div class="smartphone-earpiece-notch"></div>
+            <div class="smartphone-volume-up"></div>
+            <div class="smartphone-power-btn"></div>
+            
+            <div class="smartphone-screen-panel">
+                
+                <!-- Status bar -->
+                <div class="mobile-status-bar">
+                    <span class="mobile-time" id="mobile-clock">19:30</span>
+                    <div class="mobile-notch"></div>
+                    <div class="mobile-status-icons">
+                        <span class="signal-icon">📶</span>
+                        <span class="network-type">5G</span>
+                        <span class="battery-icon">🔋 98%</span>
+                    </div>
+                </div>
+
+                <!-- Active simulated call panel (inside phone, overlays everything when call is active!) -->
+                <div class="mini-call-panel call-inactive" id="phone-call-panel" style="background: radial-gradient(circle at center, #0f1c35 0%, #060b16 100%); position: absolute; top: 32px; left: 0; right: 0; bottom: 0; padding: 16px; z-index: 95; display: flex; flex-direction: column; gap: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+                        <div class="caller-meta" style="align-items: flex-start; margin-top: 0;">
+                            <span class="caller-name" style="font-weight: 700; font-size: 13px; color: #fff;">TGSPDCL Equal AI</span>
+                            <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
+                                <span class="call-connection-state" id="call-status" style="font-size: 9.5px; color: var(--color-electric); font-weight: 600;">Connecting...</span>
+                                <span id="call-intent-badge" class="intent-badge" style="display: none;">Outage ETA</span>
+                            </div>
+                        </div>
+                        <span class="call-time-duration" id="call-timer" style="font-family: monospace; font-size: 11px; color: var(--text-muted);">00:00</span>
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; align-items: center; background: rgba(255,255,255,0.03); padding: 6px 10px; border-radius: 8px; width: 100%;">
+                        <div class="simulated-speaker-avatar" id="call-avatar" style="width: 32px; height: 32px; min-width: 32px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 50%; display: flex; align-items: center; justify-content: center; position: relative; margin: 0;">
+                            <div class="speaker-wave wave-1"></div>
+                            <div class="speaker-wave wave-2"></div>
+                            <div class="speaker-avatar-inner" style="font-size: 14px; width: 24px; height: 24px; box-shadow: none;">⚡</div>
+                        </div>
+                        <div style="font-size: 9px; color: var(--text-secondary); line-height: 1.3;">
+                            <strong>Equal AI Screening</strong><br>
+                            Transcribing call. Click 'Take Over' to speak.
+                        </div>
+                    </div>
+
+                    <div class="chat-transcript-scroller" id="transcription-chat" style="flex-grow: 1; width: 100%; overflow-y: auto; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.04); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px; max-height: 280px;">
+                        <!-- Dynamic Chat Bubbles -->
+                    </div>
+
+                    <!-- Quick Replies & Take Over Action controls -->
+                    <div id="equal-ai-controls" style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;">
+                            <button class="quick-reply-btn" onclick="sendQuickReply('Ramanapet lo work progress undi sir, staff checking daggara unnaru.')">⚡ Outage Update</button>
+                            <button class="quick-reply-btn" onclick="sendQuickReply('Mee complaint already report ayindi sir. 15 nimishalu padutundi.')">⏳ 15 mins ETA</button>
+                            <button class="quick-reply-btn" onclick="sendQuickReply('Problem completely solve aypoyindi sir. Current check cheskondi.')">✅ Solved Status</button>
+                            <button class="quick-reply-btn" onclick="sendQuickReply('Substation main panel checking lo undi sir. Line status restored soon.')">📋 Status Check</button>
+                        </div>
+                        
+                        <button id="takeover-btn" onclick="takeOverCall()" style="background: linear-gradient(135deg, #00e676, #00b0ff); border: none; color: #000; font-weight: 700; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 9.5px; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            🙋‍♂️ Take Over Call (Speak Directly)
+                        </button>
+                    </div>
+
+                    <button id="end-call-btn" class="mobile-hangup-btn" style="width: 100%; padding: 6px; border-radius: 6px; background: var(--color-red); color: #fff; border: none; font-weight: 700; cursor: pointer; font-size: 10px; display: none; height: 36px; box-shadow: none; align-items: center; justify-content: center;">
+                        ❌ Hang Up Call
+                    </button>
+                </div>
+
+                <!-- Mobile Dialer Modal (simulating consumer dialing in on real mobile browser) -->
+                <div id="mobile-dialer-modal" class="glass" style="display: none; position: absolute; top: 32px; left: 0; right: 0; bottom: 0; z-index: 94; flex-direction: column; justify-content: center; align-items: center; padding: 20px; background: rgba(8, 13, 25, 0.96); border-radius: 34px; gap: 8px;">
+                    <button onclick="closeMobileDialerModal()" style="position: absolute; top: 16px; right: 16px; background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer;">✕</button>
+                    
+                    <div class="app-icon-container" style="width: 38px; height: 38px; font-size: 18px; margin-bottom: 2px;">📞</div>
+                    <h3 style="font-family: var(--font-heading); font-size: 13px; font-weight: 700; color: #fff; margin: 0;">Test Consumer Call</h3>
+                    <p style="font-size: 9.5px; color: var(--text-secondary); text-align: center; margin: 0 10px 5px 10px;">Select a preset query in Telugu to simulate a villager calling the AI:</p>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 4px; width: 100%; max-height: 180px; overflow-y: auto; margin-bottom: 8px; padding-right: 4px;">
+                        <button class="mini-chip" onclick="selectMobileQuery('Current eppudu vastundi?', 'Cherlapally')">
+                            <span>Current eppudu vastundi? (Cherlapally)</span>
+                        </button>
+                        <button class="mini-chip" onclick="selectMobileQuery('Mana area lo enduku current ledu?', 'Ramanapet')">
+                            <span>Mana area lo enduku current ledu? (Ramanapet)</span>
+                        </button>
+                        <button class="mini-chip" onclick="selectMobileQuery('Line breakdown aa?', 'Siddipet')">
+                            <span>Line breakdown aa? (Siddipet)</span>
+                        </button>
+                        <button class="mini-chip danger" onclick="selectMobileQuery('Maa transformer daggara poga/smoke vastundi!', 'Narketpally')">
+                            <span>Transformer daggara పొగ/smoke! ⚠️</span>
+                        </button>
+                        <button class="mini-chip danger" onclick="selectMobileQuery('Live electrical wire spark avutundi!', 'Ramanapet')">
+                            <span>Electrical wire spark అవుతుంది! ⚠️</span>
+                        </button>
+                    </div>
+                    
+                    <div style="display: flex; gap: 6px; width: 100%; align-items: center;">
+                        <input type="text" id="mobile-dialer-input" placeholder="Type query in Telugu..." style="flex-grow: 1; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 6px 10px; color: #fff; font-size: 11px; outline: none;">
+                        <button id="mobile-consumer-mic" onclick="toggleMobileConsumerSpeech()" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; width: 32px; height: 28px; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px;">🎙️</button>
+                    </div>
+                    
+                    <button onclick="startMobileConsumerCall()" class="mobile-dial-btn" style="width: 100%; margin-top: 4px; padding: 8px; font-size: 11px;">
+                        📞 Call AI Assistant
+                    </button>
+                </div>
+                
+                <!-- Status bar ends, wrap workspace -->
+                <div id="mobile-workspace-container" style="display: none; flex-direction: column; height: calc(100% - 32px);">
+                    
+                    <!-- Mobile App Header -->
+                    <header class="mobile-app-header">
+                        <div class="logo-flex">
+                            <div class="app-icon-container">⚡</div>
+                            <div class="app-titles">
+                                <h1>TGSPDCL Mobile</h1>
+                                <span>Lineman Control Center</span>
+                            </div>
+                        </div>
+                        <div class="lineman-profile-icon" id="header-profile-btn" style="cursor: pointer;" onclick="switchNavTab('profile', document.getElementById('nav-profile-btn'))" title="Profile">🤵</div>
+                    </header>
+
+                    <!-- Scrollable Mobile App Body -->
+                    <div class="mobile-app-body">
+                    
+                        <!-- TAB 1: HOME PAGE -->
+                        <div id="tab-home-content" class="mobile-tab-view active">
+                            <!-- LINEMAN PERMISSION CONTROL SWITCH CARD -->
+                            <div class="mobile-permission-card glass">
+                                <div class="permission-meta">
+                                    <span class="meta-title">AI CALLS ASSISTANT</span>
+                                    <span class="status-indicator-dot online" id="switch-state-dot"></span>
+                                </div>
+                                
+                                <div class="toggle-switch-row">
+                                    <div class="toggle-labels">
+                                        <h2 id="toggle-state-text">Active (Auto-Reply)</h2>
+                                        <p id="toggle-desc-text">AI answers incoming electricity queries in Telugu.</p>
+                                    </div>
+                                    
+                                    <!-- Glowing Switch -->
+                                    <label class="glowing-switch-label">
+                                        <input type="checkbox" id="ai-permission-switch" checked>
+                                        <span class="glowing-switch-slider"></span>
+                                    </label>
+                                </div>
+                                
+                                <!-- Forward Alert message -->
+                                <div class="call-forwarding-alert" id="call-forwarding-alert" style="display: none;">
+                                    <div class="forward-icon">📞</div>
+                                    <span>Calls forwarded directly to: <strong id="lineman-number">+91 9876543210</strong></span>
+                                </div>
+                            </div>
+
+                            <!-- Conditional Outage Reporter wrapper -->
+                            <div id="ai-reporter-wrapper" style="display: flex; flex-direction: column; gap: 12px;">
+                                <div class="voice-section-header" style="margin-top: 5px;">
+                                    <h3>Voice Outage Reporter</h3>
+                                    <span class="pill-info">No typing required</span>
+                                </div>
+                                
+                                <div class="voice-tabs-container">
+                                    <button class="voice-tab-btn active" id="btn-mic-tab" onclick="switchVoiceTab('mic')">🔴 Microphone</button>
+                                    <button class="voice-tab-btn" id="btn-preset-tab" onclick="switchVoiceTab('preset')">📋 Presets</button>
+                                    <button class="voice-tab-btn" id="btn-type-tab" onclick="switchVoiceTab('type')">⌨️ Type Manual</button>
+                                </div>
+
+                                <!-- Mic view -->
+                                <div id="m-mic-view" class="voice-tab-content active">
+                                    <div class="mic-recorder-card">
+                                        <canvas id="audio-wave-canvas" width="280" height="70"></canvas>
+                                        <div class="timer-display" id="recording-timer">00:00</div>
+                                        <p class="recording-state" id="recording-state-label">Hold to record or tap button</p>
+                                        
+                                        <button id="record-btn" class="circular-record-btn">
+                                            <div class="record-btn-inner">🎤</div>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Presets view -->
+                                <div id="m-preset-view" class="voice-tab-content">
+                                    <p class="section-desc">Tap a preset speech note to simulate lineman Telugu updates:</p>
+                                    <div class="mobile-presets-list">
+                                        <button class="m-preset-item" onclick="simulatePresetVoice('cherlapally')">
+                                            <strong>Cherlapally Update</strong>
+                                            <span>"Cherlapally lo line breakdown..."</span>
+                                        </button>
+                                        <button class="m-preset-item" onclick="simulatePresetVoice('ramanapet')">
+                                            <strong>Ramanapet Update</strong>
+                                            <span>"Ramanapet lo incoming current..."</span>
+                                        </button>
+                                        <button class="m-preset-item" onclick="simulatePresetVoice('siddipet')">
+                                            <strong>Siddipet Update</strong>
+                                            <span>"Siddipet transformer daggara..."</span>
+                                        </button>
+                                        <button class="m-preset-item" onclick="simulatePresetVoice('emergency')">
+                                            <strong class="danger-label">Emergency Report ⚠️</strong>
+                                            <span>"Transformer nunchi poga..."</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Manual Text Input view -->
+                                <div id="m-type-view" class="voice-tab-content">
+                                    <p class="section-desc">Type your Telugu electricity update status manually:</p>
+                                    <div class="manual-input-card glass" style="padding: 10px; display: flex; flex-direction: column; gap: 8px; background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px;">
+                                        <textarea id="manual-update-textarea" placeholder="Example: Ramanapet lo incoming current poyindi. 30 nimishalu padutundi..." style="width: 100%; height: 75px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 8px; color: #fff; font-family: var(--font-body); font-size: 11px; outline: none; resize: none;"></textarea>
+                                        <button id="extract-manual-btn" class="mobile-sync-btn" style="background: linear-gradient(135deg, var(--color-electric), #0077ff); color: #fff; box-shadow: 0 4px 10px var(--color-electric-glow);">
+                                            ⚡ Extract Outage Details
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- AI Parser Confirmation Card -->
+                                <div class="mobile-extraction-card" id="extraction-card" style="display: none;">
+                                    <div class="e-card-header">
+                                        <h4>AI Outage Extracted</h4>
+                                        <span class="ai-badge">AI PARSED</span>
+                                    </div>
+                                    <div class="transcription-bubble">
+                                        <label>LINEMAN SPEECH TRANSCRIPT:</label>
+                                        <p id="transcription-text">...</p>
+                                    </div>
+                                    <div class="e-form-grid">
+                                        <div class="e-form-field">
+                                            <label>Area</label>
+                                            <select id="entity-area" class="entity-select">
+                                                <option value="Cherlapally">Cherlapally</option>
+                                                <option value="Ramanapet">Ramanapet</option>
+                                                <option value="Siddipet">Siddipet</option>
+                                                <option value="Narketpally">Narketpally</option>
+                                                <option value="Choutuppal">Choutuppal</option>
+                                                <option value="Nakrekal">Nakrekal</option>
+                                                <option value="Nizamabad">Nizamabad</option>
+                                                <option value="Warangal">Warangal</option>
+                                                <option value="Karimnagar">Karimnagar</option>
+                                                <option value="Khammam">Khammam</option>
+                                                <option value="Nalgonda">Nalgonda</option>
+                                            </select>
+                                        </div>
+                                        <div class="e-form-field">
+                                            <label>Issue Type</label>
+                                            <select id="entity-issue" class="entity-select">
+                                                <option value="Power Outage">Power Outage</option>
+                                                <option value="Voltage Issue">Voltage Issue</option>
+                                                <option value="Transformer Problem">Transformer Problem</option>
+                                                <option value="Line Breakdown">Line Breakdown</option>
+                                            </select>
+                                        </div>
+                                        <div class="e-form-field">
+                                            <label>ETA Duration</label>
+                                            <input type="text" id="entity-eta" class="entity-input" value="Not Specified">
+                                        </div>
+                                        <div class="e-form-field">
+                                            <label>Status</label>
+                                            <select id="entity-status" class="entity-select">
+                                                <option value="In Progress">In Progress</option>
+                                                <option value="Outage">Outage</option>
+                                                <option value="Restored">Restored</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <button id="confirm-update-btn" class="mobile-sync-btn">
+                                        <span>Save Outage to Database</span>
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polyline points="20 6 9 17 4 12"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- When AI is off, display this message instead of the reporter -->
+                            <div id="ai-disabled-message" style="display: none; text-align: center; padding: 30px 10px; color: var(--text-muted);">
+                                <div style="font-size: 32px; margin-bottom: 10px; filter: grayscale(1);">📴</div>
+                                <p style="font-size: 11px; margin-bottom: 0; line-height: 1.5;">AI Call Assistant is currently suspended.<br>Calls will ring your phone directly instead of auto-responding.</p>
+                            </div>
+                        </div>
+
+                        <!-- TAB 2: STATUS VIEW -->
+                        <div id="tab-status-content" class="mobile-tab-view">
+                            <div class="voice-section-header">
+                                <h3>Outages & Grid Status</h3>
+                                <span class="active-badge" id="stats-outages-count">0 Outages</span>
+                            </div>
+                            <p class="section-desc" style="margin-top: -4px;">Updating outage status to 'Restored' dynamically updates the AI's consumer responses to 'Already Solved'.</p>
+                            <div class="mobile-outage-list" id="mobile-outages-feed">
+                                <!-- Dynamic Cards -->
+                            </div>
+                        </div>
+
+                        <!-- TAB 3: PROFILE VIEW -->
+                        <div id="tab-profile-content" class="mobile-tab-view">
+                            <div class="voice-section-header">
+                                <h3>Lineman Profile</h3>
+                            </div>
+                            <div class="profile-card glass" style="padding: 16px; display: flex; flex-direction: column; gap: 12px; background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px;">
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <div style="font-size: 32px; background: rgba(255,255,255,0.08); border-radius: 50%; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1);">🤵</div>
+                                    <div>
+                                        <h4 id="profile-name" style="margin: 0; color: #fff; font-size: 13px; font-weight: 700;">LM Raju</h4>
+                                        <span id="profile-cadre-label" style="font-size: 9.5px; color: var(--color-electric); font-weight: 600;">Line Man (LM)</span>
+                                    </div>
+                                </div>
+                                <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 4px 0;">
+                                <div style="font-size: 10.5px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 8px;">
+                                    <div><strong>Employee ID:</strong> <span id="profile-id">LM_Raju</span></div>
+                                    <div><strong>Phone Number:</strong> <span id="profile-phone">+91 9876543210</span></div>
+                                    <div><strong>Substation/Circle:</strong> <span id="profile-substation">Ramanapet Substation</span></div>
+                                </div>
+                                <button onclick="logoutLineman()" class="mobile-sync-btn" style="background: rgba(255,62,85,0.15); border: 1px solid rgba(255,62,85,0.25); color: #ff5252; margin-top: 10px; box-shadow: none;">
+                                    ❌ Logout from Portal
+                                </button>
+                            </div>
+                        </div>
+
+                    </div> <!-- End Mobile App Body -->
+
+                    <!-- Live Critical Emergencies Alarm Overlay (Floating Alert) -->
+                    <div class="mobile-floating-alarm" id="escalation-alert-panel" style="display: none;">
+                        <div class="alarm-icon">🚨</div>
+                        <div class="alarm-text">
+                            <h5>CRITICAL DANGER ALERT</h5>
+                            <p id="escalation-alert-text">Wire Spark detected! Escalated directly to substation.</p>
+                        </div>
+                        <button class="alarm-ack-btn" onclick="acknowledgeEscalation()">OK</button>
+                    </div>
+
+                    <!-- Active Call overlay card on phone -->
+                    <div class="mobile-floating-alarm" id="active-call-overlay" style="display: none; background: linear-gradient(135deg, #00c6ff, #0072ff); border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 10px 25px rgba(0, 198, 255, 0.4); z-index: 100;">
+                        <div class="alarm-icon" style="font-size: 16px;">📞</div>
+                        <div class="alarm-text" style="flex-grow: 1;">
+                            <h5 style="color: #fff; font-weight: 800; font-size: 10px; margin: 0; letter-spacing: 0.5px;">ACTIVE CALL WITH CONSUMER</h5>
+                            <p id="active-call-overlay-text" style="color: rgba(255,255,255,0.9); font-size: 9px; margin-top: 2px;">Connected on Lineman Handset...</p>
+                        </div>
+                        <button onclick="endConsumerCall()" style="background: #ff3b30; color: #fff; border: none; border-radius: 4px; padding: 4px 8px; font-weight: 700; font-size: 9px; cursor: pointer; box-shadow: 0 2px 6px rgba(255, 59, 48, 0.3);">HANGUP</button>
+                    </div>
+
+                    <!-- Floating Call Test Button for real mobile devices -->
+                    <button id="mobile-test-call-btn" onclick="openMobileDialerModal()" style="display: none; position: fixed; bottom: 64px; right: 16px; width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, var(--color-electric), #0077ff); border: none; color: #fff; font-size: 20px; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0, 210, 255, 0.4); z-index: 90; cursor: pointer;">
+                        📞
+                    </button>
+
+                    <!-- Voice Detection Failure Dialog Box (Floating Modal Overlay) -->
+                    <div class="mobile-floating-alarm" id="voice-error-dialog" style="display: none; background: rgba(13, 22, 43, 0.96); border: 1px solid var(--color-red); z-index: 100; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 12px; padding: 20px; position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 34px;">
+                        <div class="alarm-icon" style="font-size: 32px; animation: pulse 1.2s infinite; color: var(--color-red);">⚠️</div>
+                        <h4 style="font-family: var(--font-heading); font-size: 14px; font-weight: 700; color: #ff5252; margin: 0;">UNABLE TO CATCH VOICE</h4>
+                        <p style="font-size: 10.5px; color: var(--text-secondary); line-height: 1.5; margin: 0 10px;">We were unable to catch the voice properly. The details are unrecognized or wrong, so the grid was not updated. Please retry again with voice or type manually.</p>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: 10px;">
+                            <button onclick="dismissVoiceErrorAndAction('voice')" style="width: 100%; background: linear-gradient(135deg, var(--color-amber), #ff8c00); color: #000; font-weight: 700; font-size: 10px; padding: 10px; border-radius: 6px; border: none; cursor: pointer; transition: all 0.2s;">
+                                🎙️ Retry with Voice
+                            </button>
+                            <button onclick="dismissVoiceErrorAndAction('type')" style="width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #fff; font-weight: 600; font-size: 10px; padding: 10px; border-radius: 6px; cursor: pointer; transition: all 0.2s;">
+                                ⌨️ Type Manually
+                            </button>
+                            <button onclick="dismissVoiceErrorOnly()" style="width: 100%; background: transparent; border: none; color: var(--text-muted); font-size: 9px; cursor: pointer; padding: 4px;">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Mobile Bottom Tab Navigation Bar -->
+                    <nav class="mobile-nav-bar">
+                        <button class="nav-item active" onclick="switchNavTab('home', this)">
+                            <span class="nav-icon">🎙️</span>
+                            <span class="nav-label">Home</span>
+                        </button>
+                        <button class="nav-item" onclick="switchNavTab('status', this)">
+                            <span class="nav-icon">⚡</span>
+                            <span class="nav-label">Status</span>
+                        </button>
+                        <button class="nav-item" id="nav-profile-btn" onclick="switchNavTab('profile', this)">
+                            <span class="nav-icon">🤵</span>
+                            <span class="nav-label">Profile</span>
+                        </button>
+                    </nav>
+                </div> <!-- End mobile-workspace-container -->
+
+                <!-- Smartphone Auth Panel (Visible on start) -->
+                <div id="mobile-auth-container" style="display: flex; flex-direction: column; flex-grow: 1; padding: 20px; justify-content: center; gap: 16px; overflow-y: auto; height: calc(100% - 32px);">
+                    
+                    <div class="auth-brand" style="text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                        <div class="app-icon-container" style="width: 48px; height: 48px; font-size: 24px; margin-bottom: 4px;">⚡</div>
+                        <h2 style="font-family: var(--font-heading); font-size: 18px; font-weight: 800; color: #fff;">TGSPDCL Mobile</h2>
+                        <span style="font-size: 10px; color: var(--color-electric); font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Lineman Security Portal</span>
+                    </div>
+
+                    <!-- Auth Toggle Tab -->
+                    <div class="voice-tabs-container" style="margin-top: 4px;">
+                        <button class="voice-tab-btn active" id="btn-login-tab" onclick="switchAuthTab('login')">🔓 Login</button>
+                        <button class="voice-tab-btn" id="btn-signup-tab" onclick="switchAuthTab('signup')">📝 Register</button>
+                    </div>
+
+                    <!-- LOGIN FORM -->
+                    <div id="auth-login-form" style="display: flex; flex-direction: column; gap: 12px;">
+                        <div class="e-form-field">
+                            <label>Employee ID</label>
+                            <input type="text" id="login-employee-id" class="entity-input" placeholder="e.g. LM_Raju" style="padding: 8px !important;">
+                        </div>
+                        <div class="e-form-field">
+                            <label>Password</label>
+                            <input type="password" id="login-password" class="entity-input" placeholder="••••••••" style="padding: 8px !important;">
+                        </div>
+                        
+                        <button id="login-submit-btn" class="mobile-sync-btn" style="margin-top: 10px; background: linear-gradient(135deg, var(--color-electric), #0077ff); color: #fff; box-shadow: 0 4px 10px var(--color-electric-glow);">
+                            Unlock Control Center
+                        </button>
+                    </div>
+
+                    <!-- SIGNUP FORM (Hidden by default) -->
+                    <div id="auth-signup-form" style="display: none; flex-direction: column; gap: 10px;">
+                        <div class="e-form-field">
+                            <label>Full Name</label>
+                            <input type="text" id="signup-name" class="entity-input" placeholder="e.g. Raju" style="padding: 6px !important;">
+                        </div>
+                        <div class="e-form-field">
+                            <label>Cadre / Designation</label>
+                            <select id="signup-cadre" class="entity-select" style="padding: 6px !important; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.08); color: #fff;">
+                                <option value="LM">LM (Line Man)</option>
+                                <option value="ALM">ALM (Assistant Line Man)</option>
+                                <option value="JLM">JLM (Junior Line Man)</option>
+                            </select>
+                        </div>
+                        <div class="e-form-field">
+                            <label>Phone Number</label>
+                            <input type="text" id="signup-phone" class="entity-input" placeholder="e.g. +91 9876543210" style="padding: 6px !important;">
+                        </div>
+                        <div class="e-form-field">
+                            <label>Substation / Circle</label>
+                            <input type="text" id="signup-substation" class="entity-input" placeholder="e.g. Ramanapet Substation" style="padding: 6px !important;">
+                        </div>
+                        <div class="e-form-field">
+                            <label>Requested Employee ID</label>
+                            <input type="text" id="signup-employee-id" class="entity-input" placeholder="e.g. LM_Raju" style="padding: 6px !important;">
+                        </div>
+                        <div class="e-form-field">
+                            <label>Secure Password</label>
+                            <input type="password" id="signup-password" class="entity-input" placeholder="••••••••" style="padding: 6px !important;">
+                        </div>
+
+                        <button id="signup-submit-btn" class="mobile-sync-btn" style="margin-top: 8px; background: linear-gradient(135deg, var(--color-amber), #ff8c00); color: #000; box-shadow: 0 4px 10px var(--color-amber-glow);">
+                            Create TGSPDCL Account
+                        </button>
+                    </div>
+
+                    <!-- Auth Error/Success Feedback Box -->
+                    <div id="auth-feedback-box" class="call-forwarding-alert" style="display: none; justify-content: center; text-align: center; margin-top: 8px;">
+                        <span id="auth-feedback-text"></span>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- Desktop Outer Equal AI Call Simulator Panel -->
+        <div class="desktop-guidelines-sidebar glass" style="flex-grow: 1; min-width: 320px; max-width: 480px; display: flex; flex-direction: column; gap: 15px; padding: 20px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                    <h2 style="font-family: var(--font-heading); font-size: 20px; font-weight: 800; color: #fff; margin: 0;">Equal AI Simulator</h2>
+                    <h3 style="font-size: 10px; color: var(--color-electric); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;">Consumer Call Center</h3>
+                </div>
+                <span class="active-badge" id="ai-status-pill" style="font-size: 8px; background: rgba(0, 230, 118, 0.1); color: var(--color-green); border-color: rgba(0, 230, 118, 0.2);">AI Active</span>
+            </div>
+            
+            <p class="sidebar-intro" style="font-size: 10.5px; color: var(--text-secondary); margin: 0; line-height: 1.4;">
+                Simulate villagers calling to ask about outages. The Equal AI system intercepts the call, tags caller intent, prints live transcripts, and lets you take over.
+            </p>
+            
+            <!-- Mini Dialer panel -->
+            <div class="mini-dialer-panel" id="phone-dialer-panel" style="background: rgba(0,0,0,0.25); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; gap: 8px; width: 100%; align-items: stretch;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 14px;">📞</span>
+                    <h4 style="margin: 0; color: #fff; font-size: 11px; font-weight: 700;">Simulate Consumer Call</h4>
+                </div>
+                
+                <div class="dialer-input-row" style="display: flex; gap: 6px; width: 100%;">
+                    <input type="text" id="dialer-input" placeholder="Type query in Telugu or select chip..." style="flex-grow: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 6px 10px; color: #fff; font-size: 11px; text-align: left;">
+                    <!-- Consumer Mic Trigger Button! -->
+                    <button id="consumer-mic-btn" onclick="toggleConsumerSpeech()" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; width: 32px; height: 28px; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px;" title="Speak Telugu using your Mic">🎙️</button>
+                </div>
+
+                <div class="mini-presets-scroller" style="max-height: 90px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding-right: 4px;">
+                    <button class="mini-chip" onclick="selectQuery('Current eppudu vastundi?', 'Cherlapally')">
+                        <span>Current eppudu vastundi? (Cherlapally)</span>
+                    </button>
+                    <button class="mini-chip" onclick="selectQuery('Mana area lo enduku current ledu?', 'Ramanapet')">
+                        <span>Mana area lo enduku current ledu? (Ramanapet)</span>
+                    </button>
+                    <button class="mini-chip" onclick="selectQuery('Line breakdown aa?', 'Siddipet')">
+                        <span>Line breakdown aa? (Siddipet)</span>
+                    </button>
+                    <button class="mini-chip danger" onclick="selectQuery('Maa transformer daggara poga/smoke vastundi!', 'Narketpally')">
+                        <span>Transformer daggara పొగ/smoke! ⚠️</span>
+                    </button>
+                    <button class="mini-chip danger" onclick="selectQuery('Live electrical wire spark avutundi!', 'Ramanapet')">
+                        <span>Electrical wire spark అవుతుంది! ⚠️</span>
+                    </button>
+                </div>
+
+                <button id="dial-btn" class="mobile-dial-btn" style="width: 100%; padding: 8px; margin-top: 4px; background: linear-gradient(135deg, var(--color-electric), #0077ff); color: #fff; font-weight: 700; border-radius: 6px; border: none; cursor: pointer; font-size: 11px; box-shadow: 0 4px 10px var(--color-electric-glow);">
+                    📞 Call AI Assistant
+                </button>
+            </div>
+
+            <!-- Call History Logs -->
+            <div class="mini-dialer-panel" style="background: rgba(0,0,0,0.15); padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.04); display: flex; flex-direction: column; gap: 6px; width: 100%; align-items: stretch; max-height: 280px; flex-grow: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h4 style="margin: 0; color: #fff; font-size: 10.5px; font-weight: 700;">📊 Recent Screening Logs</h4>
+                    <span class="active-badge" id="stats-calls-count-desktop" style="font-size: 8px;">0 Calls</span>
+                </div>
+                <div class="mobile-logs-feed" id="call-log-list-desktop" style="overflow-y: auto; max-height: 240px; display: flex; flex-direction: column; gap: 4px;">
+                    <!-- Dynamic logs -->
+                </div>
+            </div>
+            
+            <div class="sidebar-footer" style="margin-top: auto; display: flex; flex-direction: column; gap: 2px; font-size: 9px; color: var(--text-muted);">
+                <span>FastAPI backend listening on Port 8000</span>
+                <span>Active Equal AI Interception Engine</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Audio assets for simulated ringtones/beep effects -->
+    <audio id="ringback-audio" src="https://assets.mixkit.co/active_storage/sfx/1657/1657-84.wav" loop></audio>
+    <audio id="hangup-audio" src="https://assets.mixkit.co/active_storage/sfx/2568/2568-84.wav"></audio>
+
+    <!-- JS Scripts -->
+    <script src="/static/app.js"></script>
+</body>
+</html>
