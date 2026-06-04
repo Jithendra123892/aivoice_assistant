@@ -188,17 +188,27 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
 
     fun updateApiService(host: String) {
-        serverHost = host
+        var cleanHost = host.trim()
+        if (cleanHost.startsWith("http://")) {
+            cleanHost = cleanHost.substring(7)
+        } else if (cleanHost.startsWith("https://")) {
+            cleanHost = cleanHost.substring(8)
+        }
+        if (cleanHost.endsWith("/")) {
+            cleanHost = cleanHost.substring(0, cleanHost.length - 1)
+        }
+        serverHost = cleanHost
+        
         val logger = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
         val okHttpClient = OkHttpClient.Builder()
             .addInterceptor(logger)
             .build()
-        val protocol = if (host.contains("localhost") || host.contains("10.0.2.2") || host.contains("192.168.")) "http" else "https"
+        val protocol = if (cleanHost.contains("localhost") || cleanHost.contains("10.0.2.2") || cleanHost.contains("192.168.")) "http" else "https"
         apiService = try {
             Retrofit.Builder()
-                .baseUrl("$protocol://$host/")
+                .baseUrl("$protocol://$cleanHost/")
                 .client(okHttpClient)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()
@@ -1113,9 +1123,18 @@ fun MainLinemanScreen() {
                                                     Spacer(modifier = Modifier.width(8.dp))
                                                     Button(
                                                         onClick = {
-                                                            serverHost = tempHost
-                                                            sharedPrefs.edit().putString("server_host", tempHost).apply()
-                                                            (context as? MainActivity)?.updateApiService(tempHost)
+                                                            var clean = tempHost.trim()
+                                                            if (clean.startsWith("http://")) {
+                                                                clean = clean.substring(7)
+                                                            } else if (clean.startsWith("https://")) {
+                                                                clean = clean.substring(8)
+                                                            }
+                                                            if (clean.endsWith("/")) {
+                                                                clean = clean.substring(0, clean.length - 1)
+                                                            }
+                                                            serverHost = clean
+                                                            sharedPrefs.edit().putString("server_host", clean).apply()
+                                                            (context as? MainActivity)?.updateApiService(clean)
                                                             isEditingHost = false
                                                         },
                                                         contentPadding = PaddingValues(horizontal = 8.dp)
