@@ -16,6 +16,14 @@ from voice_processing.voice_processor import VoiceProcessor
 from config.settings import Config
 from models.nlp_model import CustomNLPModel
 
+try:
+    import google.generativeai as genai
+    if Config.GEMINI_API_KEY:
+        genai.configure(api_key=Config.GEMINI_API_KEY)
+except Exception as e:
+    print(f"Error importing or configuring google-generativeai: {e}")
+    genai = None
+
 # Initialize components
 router = APIRouter(prefix="/api/v1", tags=["voice_assistant"])
 
@@ -194,6 +202,69 @@ async def process_consumer_query(query: ConsumerQueryRequest):
             "lineman_phone": settings['lineman_phone']
         }
 
+    # Fetch outage info from database
+    outage_info = db.get_outage_info(query.area)
+
+    # Use Gemini if key is provided and import succeeded
+    if genai and Config.GEMINI_API_KEY:
+        try:
+            prompt = f"""
+            You are the TGSPDCL AI Voice Call Assistant, a friendly and polite customer service assistant responding to a consumer on a phone call.
+            The consumer's query is: "{query.query}"
+            The consumer's area is: "{query.area}"
+            
+            Current Outage Status from the database for the area:
+            {json.dumps(outage_info) if outage_info else "No active outage record found for this area."}
+            
+            Instructions:
+            1. Generate a friendly, polite, conversational reply in Telugu (using Telugu script). Keep it natural for voice communication.
+            2. If there is an active outage in the database (status is In Progress, Pending, etc.):
+               - Politely inform the consumer about the outage status, the cause (issue), and the ETA (Estimated Time of Restoration) in Telugu. Keep it simple, clear, and reassuring. Ask them to cooperate (e.g., 'meeru dayachesi cooperate cheyandi sir').
+            3. If the outage is marked as Solved, Completed, or Restored:
+               - Inform them that the issue is solved and power is restored. Thank them for their cooperation.
+            4. If the consumer asks complex or unrelated questions (e.g. regarding billing, contact details or phone numbers, complaints, reporting sparks/fire emergency, asking to speak to a supervisor/officer/operator/lineman, or any query other than simple power outage checks), OR if no outage record exists for their area in the database:
+               - Set "should_forward" to true in your JSON output.
+               - In the "response" text, politely inform them that you are forwarding their call to the substation operator/lineman. For example: "Oka minute aagandi sir, mee call ni substation operator ki forward chestunnamu. Valle ki cheppandi mee samasya."
+            5. If they just ask simple power status check questions (like 'current eppudu vastundi', 'current enduku poyindi') and we have the active database outage info, answer it and set "should_forward" to false.
+
+            You MUST respond in JSON format with two fields:
+            {{
+              "response": "The Telugu text to speak to the caller",
+              "should_forward": true/false
+            }}
+            """
+            
+            model_name = "gemini-1.5-flash"
+            try:
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(
+                    prompt,
+                    generation_config={"response_mime_type": "application/json"}
+                )
+            except Exception as model_err:
+                print(f"Failed to use model {model_name}, trying gemini-2.5-flash: {model_err}")
+                model_name = "gemini-2.5-flash"
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(
+                    prompt,
+                    generation_config={"response_mime_type": "application/json"}
+                )
+            
+            result = json.loads(response.text)
+            response_text = result.get("response", "")
+            should_forward = result.get("should_forward", False)
+            
+            db.log_consumer_query(query.area, query.query, response_text)
+            return {
+                "response": response_text,
+                "outage_info": outage_info,
+                "forwarded": should_forward,
+                "lineman_phone": settings['lineman_phone'] if should_forward else None
+            }
+        except Exception as gemini_err:
+            print(f"Gemini API execution error: {str(gemini_err)}. Falling back to rule-based logic.")
+
+    # Fallback rule-based logic if Gemini is not available or fails
     # Check if the query is a complex "more question" or emergency
     lower_query = query.query.lower()
     complex_keywords = [
@@ -221,8 +292,6 @@ async def process_consumer_query(query: ConsumerQueryRequest):
             "forwarded": True,
             "lineman_phone": settings['lineman_phone']
         }
-
-    outage_info = db.get_outage_info(query.area)
 
     if outage_info:
         # Generate response based on status
