@@ -7,11 +7,11 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.net.Uri
-import android.os.Build
 import android.provider.ContactsContract
 import android.telecom.TelecomManager
 import android.telephony.TelephonyManager
 import android.util.Log
+import android.os.Build
 
 class CallReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -20,63 +20,99 @@ class CallReceiver : BroadcastReceiver() {
         val state = intent.getStringExtra(TelephonyManager.EXTRA_STATE)
         Log.d("CallReceiver", "Phone State Changed: $state")
 
+        val sharedPrefs = context.getSharedPreferences("TGSPDCL_PREFS", Context.MODE_PRIVATE)
+
         if (state == TelephonyManager.EXTRA_STATE_RINGING) {
             val incomingNumber = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
-            Log.d("CallReceiver", "Incoming call from: $incomingNumber")
+            Log.d("CallReceiver", "Ringing: $incomingNumber")
 
             if (incomingNumber.isNullOrEmpty()) return
 
-            // 1. Check if the number is in contacts
+            // 1. Check contacts and AI switch
             val inContacts = isNumberInContacts(context, incomingNumber)
-            Log.d("CallReceiver", "Is in contacts: $inContacts")
-
-            if (inContacts) {
-                // Known contact: Let the default dialer handle it and ring normally
-                Log.d("CallReceiver", "Known contact. Letting it ring normally.")
-                return
-            }
-
-            // 2. Check if AI Call Assistant is turned ON
-            val sharedPrefs = context.getSharedPreferences("TGSPDCL_PREFS", Context.MODE_PRIVATE)
             val isAiActive = sharedPrefs.getBoolean("ai_assistant_active", true)
-            Log.d("CallReceiver", "AI Assistant Active State: $isAiActive")
 
-            if (!isAiActive) {
-                // AI is off: Let it ring normally
-                Log.d("CallReceiver", "AI Assistant is OFF. Letting call ring normally.")
-                return
-            }
+            if (!inContacts && isAiActive) {
+                // Save the number
+                sharedPrefs.edit()
+                    .putString("pending_incoming_number", incomingNumber)
+                    .apply()
+                Log.d("CallReceiver", "Saved unknown caller: $incomingNumber to pending list.")
 
-            // 3. Unknown caller & AI is ON: Intercept & Auto-answer!
-            Log.d("CallReceiver", "Unknown caller & AI is ON. Intercepting call...")
-            try {
-                // Request programmatically answering the call (Requires API 28+)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    if (context.checkSelfPermission(Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED) {
-                        val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
-                        telecomManager.acceptRingingCall()
-                        Log.d("CallReceiver", "Call answered programmatically.")
-
-                        // Route call audio to speakerphone
-                        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-                        audioManager.mode = AudioManager.MODE_IN_CALL
-                        audioManager.isSpeakerphoneOn = true
-                        Log.d("CallReceiver", "Speakerphone enabled.")
-
-                        // Launch MainActivity Call Screen
-                        val launchIntent = Intent(context, MainActivity::class.java).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                            putExtra("EXTRA_INCOMING_CALL", true)
-                            putExtra("EXTRA_CALLER_NUMBER", incomingNumber)
-                        }
-                        context.startActivity(launchIntent)
-                    } else {
-                        Log.e("CallReceiver", "ANSWER_PHONE_CALLS permission not granted.")
-                    }
+                // Silence ringer immediately so phone doesn't ring
+                try {
+                    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                    audioManager.adjustStreamVolume(AudioManager.STREAM_RING, AudioManager.ADJUST_MUTE, 0)
+                    Log.d("CallReceiver", "Ringer muted for unknown caller.")
+                } catch (e: Exception) {
+                    Log.e("CallReceiver", "Failed to mute ringer: ${e.message}")
                 }
-            } catch (e: Exception) {
-                Log.e("CallReceiver", "Error answering call programmatically: ${e.message}", e)
+
+                // Automatically answer the call programmatically
+                try {
+                    val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
+                    if (context.checkSelfPermission(Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED) {
+                        telecomManager.acceptRingingCall()
+                        Log.d("CallReceiver", "Auto-answered ringing call programmatically.")
+                    } else {
+                        Log.w("CallReceiver", "ANSWER_PHONE_CALLS permission not granted.")
+                    }
+                } catch (e: Exception) {
+                    Log.e("CallReceiver", "Error answering call programmatically: ${e.message}", e)
+                }
+            } else {
+                sharedPrefs.edit().remove("pending_incoming_number").apply()
             }
+        } 
+        else if (state == TelephonyManager.EXTRA_STATE_OFFHOOK) {
+            // Call has been answered!
+            val pendingNumber = sharedPrefs.getString("pending_incoming_number", null)
+            Log.d("CallReceiver", "Call Answered (OFFHOOK). Pending number: $pendingNumber")
+
+            // Unmute ringer
+            try {
+                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                audioManager.adjustStreamVolume(AudioManager.STREAM_RING, AudioManager.ADJUST_UNMUTE, 0)
+            } catch (e: Exception) {
+                Log.e("CallReceiver", "Failed to unmute ringer: ${e.message}")
+            }
+
+            if (!pendingNumber.isNullOrEmpty()) {
+                // Start CallScreeningService instead of MainActivity
+                val serviceIntent = Intent(context, CallScreeningService::class.java).apply {
+                    action = "START_SCREENING"
+                    putExtra("EXTRA_CALLER_NUMBER", pendingNumber)
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(serviceIntent)
+                } else {
+                    context.startService(serviceIntent)
+                }
+                Log.d("CallReceiver", "CallScreeningService started for caller: $pendingNumber")
+                
+                // Clear pending number so we don't trigger twice
+                sharedPrefs.edit().remove("pending_incoming_number").apply()
+            }
+        }
+        else if (state == TelephonyManager.EXTRA_STATE_IDLE) {
+            // Call hung up
+            Log.d("CallReceiver", "Call Hung Up (IDLE). Stopping background service.")
+            sharedPrefs.edit().remove("pending_incoming_number").apply()
+
+            // Restore ringer settings
+            try {
+                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                audioManager.adjustStreamVolume(AudioManager.STREAM_RING, AudioManager.ADJUST_UNMUTE, 0)
+            } catch (e: Exception) {
+                Log.e("CallReceiver", "Failed to unmute ringer: ${e.message}")
+            }
+
+            // Trigger end call in CallScreeningService
+            val stopIntent = Intent(context, CallScreeningService::class.java).apply {
+                action = "STOP_SCREENING"
+            }
+            context.startService(stopIntent)
+            Log.d("CallReceiver", "CallScreeningService stop signal sent.")
         }
     }
 

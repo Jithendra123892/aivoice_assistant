@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from pydantic import BaseModel
 from typing import Optional, List
 import os
@@ -66,6 +66,7 @@ class OutageStatusUpdateRequest(BaseModel):
     area: str
     status: str
     staff_name: Optional[str] = None
+    reason: Optional[str] = None
 
 @router.get("/")
 async def root():
@@ -173,7 +174,8 @@ async def update_outage_status(req: OutageStatusUpdateRequest):
             issue=info["issue"],
             eta=info["eta"],
             status=req.status,
-            staff_name=req.staff_name or info["staff_name"]
+            staff_name=req.staff_name or info["staff_name"],
+            reason=req.reason
         )
         
         # Retrieve fresh updated info to get the actual recorded timestamp
@@ -182,6 +184,7 @@ async def update_outage_status(req: OutageStatusUpdateRequest):
             "message": "Outage status updated successfully",
             "area": req.area,
             "status": req.status,
+            "reason": updated_info.get("reason"),
             "last_updated": updated_info.get("last_updated", datetime.now().isoformat())
         }
     except Exception as e:
@@ -221,7 +224,8 @@ async def process_consumer_query(query: ConsumerQueryRequest):
             2. If there is an active outage in the database (status is In Progress, Pending, etc.):
                - Politely inform the consumer about the outage status, the cause (issue), and the ETA (Estimated Time of Restoration) in Telugu. Keep it simple, clear, and reassuring. Ask them to cooperate (e.g., 'meeru dayachesi cooperate cheyandi sir').
             3. If the outage is marked as Solved, Completed, or Restored:
-               - Inform them that the issue is solved and power is restored. Thank them for their cooperation.
+               - Inform them that power has been restored: say "current vachindi chudandi sir" (current came, check it) in Telugu.
+               - Also, mention the reason why the power was interrupted if there is a reason for interruption recorded in the database (e.g., 'interruption ki karanam <reason>'). Thank them for their cooperation.
             4. If the consumer asks complex or unrelated questions (e.g. regarding billing, contact details or phone numbers, complaints, reporting sparks/fire emergency, asking to speak to a supervisor/officer/operator/lineman, or any query other than simple power outage checks), OR if no outage record exists for their area in the database:
                - Set "should_forward" to true in your JSON output.
                - In the "response" text, politely inform them that you are forwarding their call to the substation operator/lineman. For example: "Oka minute aagandi sir, mee call ni substation operator ki forward chestunnamu. Valle ki cheppandi mee samasya."
@@ -296,8 +300,10 @@ async def process_consumer_query(query: ConsumerQueryRequest):
     if outage_info:
         # Generate response based on status
         status = outage_info.get("status", "")
-        if status.lower() in ["solved", "restored"]:
-            response_text = f"Mee area {query.area} lo power supply issue already solved aypoyindi sir. Power clear aindi, oka sari check cheskondi sir. Cooperation ki dhanyavadalu."
+        reason = outage_info.get("reason", "")
+        if status.lower() in ["solved", "restored", "completed"]:
+            reason_text = f" Interruption ki karanam {reason} sir." if reason else ""
+            response_text = f"Mee area {query.area} lo current vachindi chudandi sir.{reason_text} Cooperation ki dhanyavadalu."
         else:
             if voice_processor:
                 response_text = voice_processor.generate_response(query.query, outage_info)
@@ -386,3 +392,49 @@ async def process_staff_voice_update(voice_update: VoiceNoteRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing staff voice update: {str(e)}")
+
+@router.get("/call-logs/")
+async def get_call_logs():
+    """Retrieve all call logs"""
+    try:
+        logs = db.get_all_call_logs()
+        return {"logs": logs}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving call logs: {str(e)}")
+
+@router.post("/call-logs/")
+async def create_call_log(
+    caller_number: str = Form(...),
+    transcript: str = Form(...),
+    status: str = Form(...),
+    file: Optional[UploadFile] = File(None)
+):
+    """Create a new call log and save its recording file if uploaded"""
+    try:
+        audio_path = ""
+        if file:
+            project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            recordings_dir = os.path.join(project_dir, "static", "recordings")
+            os.makedirs(recordings_dir, exist_ok=True)
+            
+            # Save the file
+            filename = f"rec_{int(datetime.now().timestamp())}_{file.filename}"
+            file_dest = os.path.join(recordings_dir, filename)
+            with open(file_dest, "wb") as buffer:
+                content = await file.read()
+                buffer.write(content)
+            audio_path = f"/static/recordings/{filename}"
+            
+        inserted_id = db.save_call_log(
+            caller_number=caller_number,
+            transcript=transcript,
+            audio_path=audio_path,
+            status=status
+        )
+        return {
+            "message": "Call log saved successfully",
+            "id": inserted_id,
+            "audio_path": audio_path
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error saving call log: {str(e)}")

@@ -24,7 +24,8 @@ class DatabaseManager:
                 eta TEXT,
                 status TEXT,
                 last_updated TIMESTAMP,
-                staff_name TEXT
+                staff_name TEXT,
+                reason TEXT
             )
         ''')
 
@@ -67,9 +68,26 @@ class DatabaseManager:
             )
         ''')
 
-        # Safely add column if the table was created under the older schema
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS call_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                caller_number TEXT NOT NULL,
+                timestamp TIMESTAMP,
+                transcript TEXT,
+                audio_path TEXT,
+                status TEXT
+            )
+        ''')
+
+        # Safely add cadre column if the table was created under the older schema
         try:
             cursor.execute("ALTER TABLE users ADD COLUMN cadre TEXT DEFAULT 'LM'")
+        except sqlite3.OperationalError:
+            pass # Column already exists
+
+        # Safely add reason column to outages if table already existed
+        try:
+            cursor.execute("ALTER TABLE outages ADD COLUMN reason TEXT")
         except sqlite3.OperationalError:
             pass # Column already exists
 
@@ -104,7 +122,7 @@ class DatabaseManager:
         conn.commit()
         conn.close()
 
-    def update_outage_info(self, area: str, issue: str, eta: str, status: str, staff_name: Optional[str] = None):
+    def update_outage_info(self, area: str, issue: str, eta: str, status: str, staff_name: Optional[str] = None, reason: Optional[str] = None):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
@@ -112,23 +130,22 @@ class DatabaseManager:
         existing = cursor.fetchone()
 
         if existing:
+            query = "UPDATE outages SET issue = ?, eta = ?, status = ?, last_updated = ?"
+            params = [issue, eta, status, datetime.now().isoformat()]
             if staff_name:
-                cursor.execute('''
-                    UPDATE outages
-                    SET issue = ?, eta = ?, status = ?, last_updated = ?, staff_name = ?
-                    WHERE area = ?
-                ''', (issue, eta, status, datetime.now().isoformat(), staff_name, area))
-            else:
-                cursor.execute('''
-                    UPDATE outages
-                    SET issue = ?, eta = ?, status = ?, last_updated = ?
-                    WHERE area = ?
-                ''', (issue, eta, status, datetime.now().isoformat(), area))
+                query += ", staff_name = ?"
+                params.append(staff_name)
+            if reason is not None:
+                query += ", reason = ?"
+                params.append(reason)
+            query += " WHERE area = ?"
+            params.append(area)
+            cursor.execute(query, tuple(params))
         else:
             cursor.execute('''
-                INSERT INTO outages (area, issue, eta, status, last_updated, staff_name)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (area, issue, eta, status, datetime.now().isoformat(), staff_name))
+                INSERT INTO outages (area, issue, eta, status, last_updated, staff_name, reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (area, issue, eta, status, datetime.now().isoformat(), staff_name, reason))
 
         conn.commit()
         conn.close()
@@ -148,7 +165,8 @@ class DatabaseManager:
                 "eta": result[3],
                 "status": result[4],
                 "last_updated": result[5],
-                "staff_name": result[6]
+                "staff_name": result[6],
+                "reason": result[7] if len(result) > 7 else None
             }
         return None
 
@@ -168,7 +186,8 @@ class DatabaseManager:
                 "eta": result[3],
                 "status": result[4],
                 "last_updated": result[5],
-                "staff_name": result[6]
+                "staff_name": result[6],
+                "reason": result[7] if len(result) > 7 else None
             })
 
         return outages
@@ -252,6 +271,40 @@ class DatabaseManager:
                 "cadre": res[4]
             }
         return None
+
+    def save_call_log(self, caller_number: str, transcript: str, audio_path: str, status: str) -> int:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO call_logs (caller_number, timestamp, transcript, audio_path, status)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (caller_number, datetime.now().isoformat(), transcript, audio_path, status))
+        
+        inserted_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return inserted_id
+
+    def get_all_call_logs(self) -> List[Dict]:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id, caller_number, timestamp, transcript, audio_path, status FROM call_logs ORDER BY id DESC")
+        results = cursor.fetchall()
+        conn.close()
+        
+        logs = []
+        for res in results:
+            logs.append({
+                "id": res[0],
+                "caller_number": res[1],
+                "timestamp": res[2],
+                "transcript": res[3],
+                "audio_path": res[4],
+                "status": res[5]
+            })
+        return logs
 
 class OutageInfo(Base):
     __tablename__ = 'outage_info'
