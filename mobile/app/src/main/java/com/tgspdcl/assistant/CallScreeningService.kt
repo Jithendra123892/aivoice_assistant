@@ -54,6 +54,7 @@ class CallScreeningService : Service(), TextToSpeech.OnInitListener {
 
     private val CHANNEL_ID = "CallScreeningChannel"
     private val NOTIFICATION_ID = 2026
+    private var isTtsInitialized = false
 
     override fun onCreate() {
         super.onCreate()
@@ -141,16 +142,24 @@ class CallScreeningService : Service(), TextToSpeech.OnInitListener {
         // Start call audio recording
         startRecording()
 
-        // Play Greeting
-        val greeting = "Hello sir, TGSPDCL assistant. Cheppandi sir."
-        callTranscript.add("AI Assistant" to greeting)
-
-        // Wait brief moment for audio routing to stabilize, then greet
+        // Wait brief moment for audio routing to stabilize, then greet if ready
         serviceScope.launch {
             delay(1000)
-            speakText(greeting) {
-                listenToCaller()
+            if (isTtsInitialized) {
+                triggerGreeting()
+            } else {
+                Log.d("CallScreeningService", "TTS not initialized yet. Greeting will trigger in onInit.")
             }
+        }
+    }
+
+    private fun triggerGreeting() {
+        val greeting = "Hello sir, TGSPDCL assistant. Cheppandi sir."
+        if (callTranscript.none { it.second == greeting }) {
+            callTranscript.add("AI Assistant" to greeting)
+        }
+        speakText(greeting) {
+            listenToCaller()
         }
     }
 
@@ -534,6 +543,14 @@ class CallScreeningService : Service(), TextToSpeech.OnInitListener {
             } catch (e: Exception) {
                 Log.e("CallScreeningService", "Failed to set TTS AudioAttributes: ${e.message}")
             }
+
+            isTtsInitialized = true
+            // If call started and we have only logged the intercepted event, play greeting now!
+            if (isCallActive && callTranscript.size == 1) {
+                triggerGreeting()
+            }
+        } else {
+            Log.e("CallScreeningService", "TTS Initialization Failed")
         }
     }
 
